@@ -167,8 +167,7 @@ struct Radio_s
      * \param [IN] modem        Radio modem to be used [0: FSK, 1: LoRa]
      * \param [IN] bandwidth    Sets the bandwidth
      *                          FSK : >= 2600 and <= 250000 Hz
-     *                          LoRa: [0: 125 kHz, 1: 250 kHz,
-     *                                 2: 500 kHz, 3: Reserved]
+     *                          LoRa: bandwidth in Hertz
      * \param [IN] datarate     Sets the Datarate
      *                          FSK : 600..300000 bits/s
      *                          LoRa: [6: 64, 7: 128, 8: 256, 9: 512,
@@ -217,8 +216,7 @@ struct Radio_s
      *                          LoRa: 0
      * \param [IN] bandwidth    Sets the bandwidth (LoRa only)
      *                          FSK : 0
-     *                          LoRa: [0: 125 kHz, 1: 250 kHz,
-     *                                 2: 500 kHz, 3: Reserved]
+     *                          LoRa: bandwidth in Hertz
      * \param [IN] datarate     Sets the Datarate
      *                          FSK : 600..300000 bits/s
      *                          LoRa: [6: 64, 7: 128, 8: 256, 9: 512,
@@ -262,8 +260,7 @@ struct Radio_s
      * \param [IN] modem      Radio modem to be used [0: FSK, 1: LoRa]
      * \param [IN] bandwidth    Sets the bandwidth
      *                          FSK : >= 2600 and <= 250000 Hz
-     *                          LoRa: [0: 125 kHz, 1: 250 kHz,
-     *                                 2: 500 kHz, 3: Reserved]
+     *                          LoRa: bandwidth in Hertz
      * \param [IN] datarate     Sets the Datarate
      *                          FSK : 600..300000 bits/s
      *                          LoRa: [6: 64, 7: 128, 8: 256, 9: 512,

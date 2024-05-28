@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.8.0] - 2024-05-28
+Convert bandwidth input to Hz rather than an enum to support the entire range
+
 ## LoRaWAN pre-certification results
 
 Please refer to [Releases pre-certification-results](https://github.com/Lora-net/LoRaMac-node/wiki/releases-pre-certification-results) document for further information.
@@ -71,7 +74,7 @@ Please refer to [Releases pre-certification-results](https://github.com/Lora-net
 
 ### Security
 
-- Security breach found by Simon Wörner(@SWW13) please refer to security advisory - [security advisory - CVE-2022-39274](https://github.com/Lora-net/LoRaMac-node/security/advisories/GHSA-7vv8-73pc-63c2)
+- Security breach found by Simon Wï¿½rner(@SWW13) please refer to security advisory - [security advisory - CVE-2022-39274](https://github.com/Lora-net/LoRaMac-node/security/advisories/GHSA-7vv8-73pc-63c2)
 
 ## [4.6.0] - 2022-01-11
 

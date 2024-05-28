@@ -90,8 +90,7 @@ uint32_t RadioRandom( void );
  * \param [IN] modem        Radio modem to be used [0: FSK, 1: LoRa]
  * \param [IN] bandwidth    Sets the bandwidth
  *                          FSK : >= 2600 and <= 250000 Hz
- *                          LoRa: [0: 125 kHz, 1: 250 kHz,
- *                                 2: 500 kHz, 3: Reserved]
+ *                          LoRa: bandwidth in Hertz
  * \param [IN] datarate     Sets the Datarate
  *                          FSK : 600..300000 bits/s
  *                          LoRa: [6: 64, 7: 128, 8: 256, 9: 512,
@@ -141,8 +140,7 @@ void RadioSetRxConfig( RadioModems_t modem, uint32_t bandwidth,
  *                          LoRa: 0
  * \param [IN] bandwidth    Sets the bandwidth (LoRa only)
  *                          FSK : 0
- *                          LoRa: [0: 125 kHz, 1: 250 kHz,
- *                                 2: 500 kHz, 3: Reserved]
+ *                          LoRa: bandwidth in Hertz
  * \param [IN] datarate     Sets the Datarate
  *                          FSK : 600..300000 bits/s
  *                          LoRa: [6: 64, 7: 128, 8: 256, 9: 512,
@@ -188,8 +186,7 @@ bool RadioCheckRfFrequency( uint32_t frequency );
  * \param [IN] modem      Radio modem to be used [0: FSK, 1: LoRa]
  * \param [IN] bandwidth    Sets the bandwidth
  *                          FSK : >= 2600 and <= 250000 Hz
- *                          LoRa: [0: 125 kHz, 1: 250 kHz,
- *                                 2: 500 kHz, 3: Reserved]
+ *                          LoRa: bandwidth in Hertz
  * \param [IN] datarate     Sets the Datarate
  *                          FSK : 600..300000 bits/s
  *                          LoRa: [6: 64, 7: 128, 8: 256, 9: 512,
@@ -390,12 +387,12 @@ typedef struct
 {
     uint32_t bandwidth;
     uint8_t  RegValue;
-}FskBandwidth_t;
+}RadioBandwidth_t;
 
 /*!
  * Precomputed FSK bandwidth registers values
  */
-const FskBandwidth_t FskBandwidths[] =
+const RadioBandwidth_t FskBandwidths[] =
 {
     { 4800  , 0x1F },
     { 5800  , 0x17 },
@@ -417,11 +414,18 @@ const FskBandwidth_t FskBandwidths[] =
     { 234300, 0x0A },
     { 312000, 0x19 },
     { 373600, 0x11 },
-    { 467000, 0x09 },
-    { 500000, 0x00 }, // Invalid Bandwidth
+    { 467000, 0x09 }
 };
 
-const RadioLoRaBandwidths_t Bandwidths[] = { LORA_BW_125, LORA_BW_250, LORA_BW_500 };
+/*!
+ * Precomputed Lora bandwidth registers values
+ */
+const RadioBandwidth_t LoraBandwidths[] = {
+    { 7810, LORA_BW_007 },
+    { 10420, LORA_BW_010 },    { 15630, LORA_BW_015 },    { 20830, LORA_BW_020 },   
+    { 31250, LORA_BW_031 },    { 41670, LORA_BW_041 },    { 62500, LORA_BW_062 },
+    { 125000, LORA_BW_125 },  { 250000, LORA_BW_250 },  { 500000, LORA_BW_500 }
+};
 
 uint8_t MaxPayloadLength = 0xFF;
 
@@ -429,7 +433,6 @@ uint32_t TxTimeout = 0;
 uint32_t RxTimeout = 0;
 
 bool RxContinuous = false;
-
 
 PacketStatus_t RadioPktStatus;
 uint8_t RadioRxPayload[255];
@@ -492,6 +495,35 @@ TimerEvent_t TxTimeoutTimer;
 TimerEvent_t RxTimeoutTimer;
 
 /*!
+ * Returns the known bandwidth registers value, rounding up
+ *
+ * \param [IN] bandwidth Bandwidth value in Hz
+ * \param [IN] bandwidth,register list
+ * \param [IN] bandwidth list length
+ * \retval regValue Bandwidth register value.
+ */
+static uint8_t RadioGetBandwidthRegValue( uint32_t bandwidth, const RadioBandwidth_t* bandlist, uint8_t numbands )
+{
+    uint8_t i;
+
+    if( bandwidth <= bandlist[0].bandwidth)
+    {
+        return ( bandlist[0].RegValue );
+    }
+
+    for( i = 1; i < numbands; i++ )
+    {
+        if( ( bandwidth > bandlist[i-1].bandwidth ) && ( bandwidth <= bandlist[i].bandwidth ) )
+        {
+            return bandlist[i].RegValue;
+        }
+    }
+    // ERROR: Value not found
+    while( 1 )
+        ;
+}
+
+/*!
  * Returns the known FSK bandwidth registers value
  *
  * \param [IN] bandwidth Bandwidth value in Hz
@@ -499,23 +531,20 @@ TimerEvent_t RxTimeoutTimer;
  */
 static uint8_t RadioGetFskBandwidthRegValue( uint32_t bandwidth )
 {
-    uint8_t i;
-
-    if( bandwidth == 0 )
-    {
-        return( 0x1F );
-    }
-
-    for( i = 0; i < ( sizeof( FskBandwidths ) / sizeof( FskBandwidth_t ) ) - 1; i++ )
-    {
-        if( ( bandwidth >= FskBandwidths[i].bandwidth ) && ( bandwidth < FskBandwidths[i + 1].bandwidth ) )
-        {
-            return FskBandwidths[i+1].RegValue;
-        }
-    }
-    // ERROR: Value not found
-    while( 1 );
+    return RadioGetBandwidthRegValue(bandwidth, FskBandwidths, sizeof( FskBandwidths ) / sizeof( RadioBandwidth_t ));
 }
+
+/*!
+ * Returns the known Lora bandwidth registers value
+ *
+ * \param [IN] bandwidth Bandwidth value in Hz
+ * \retval regValue Bandwidth register value.
+ */
+static uint8_t RadioGetLoraBandwidthRegValue( uint32_t bandwidth )
+{
+    return RadioGetBandwidthRegValue(bandwidth, LoraBandwidths, sizeof( LoraBandwidths ) / sizeof( RadioBandwidth_t ));
+}
+
 
 void RadioInit( RadioEvents_t *events )
 {
@@ -699,7 +728,7 @@ void RadioSetRxConfig( RadioModems_t modem, uint32_t bandwidth,
             SX126xSetStopRxTimerOnPreambleDetect( false );
             SX126x.ModulationParams.PacketType = PACKET_TYPE_LORA;
             SX126x.ModulationParams.Params.LoRa.SpreadingFactor = ( RadioLoRaSpreadingFactors_t )datarate;
-            SX126x.ModulationParams.Params.LoRa.Bandwidth = Bandwidths[bandwidth];
+            SX126x.ModulationParams.Params.LoRa.Bandwidth = RadioGetLoraBandwidthRegValue(bandwidth);
             SX126x.ModulationParams.Params.LoRa.CodingRate = ( RadioLoRaCodingRates_t )coderate;
 
             if( ( ( bandwidth == 0 ) && ( ( datarate == 11 ) || ( datarate == 12 ) ) ) ||
@@ -806,11 +835,11 @@ void RadioSetTxConfig( RadioModems_t modem, int8_t power, uint32_t fdev,
         case MODEM_LORA:
             SX126x.ModulationParams.PacketType = PACKET_TYPE_LORA;
             SX126x.ModulationParams.Params.LoRa.SpreadingFactor = ( RadioLoRaSpreadingFactors_t ) datarate;
-            SX126x.ModulationParams.Params.LoRa.Bandwidth =  Bandwidths[bandwidth];
+            SX126x.ModulationParams.Params.LoRa.Bandwidth =  RadioGetLoraBandwidthRegValue(bandwidth);
             SX126x.ModulationParams.Params.LoRa.CodingRate= ( RadioLoRaCodingRates_t )coderate;
 
-            if( ( ( bandwidth == 0 ) && ( ( datarate == 11 ) || ( datarate == 12 ) ) ) ||
-            ( ( bandwidth == 1 ) && ( datarate == 12 ) ) )
+            if( ( ( bandwidth <= 125000 ) && ( ( datarate == 11 ) || ( datarate == 12 ) ) ) ||
+            ( ( bandwidth == 250000 ) && ( datarate == 12 ) ) )
             {
                 SX126x.ModulationParams.Params.LoRa.LowDatarateOptimize = 0x01;
             }
@@ -868,47 +897,6 @@ void RadioSetTxConfig( RadioModems_t modem, int8_t power, uint32_t fdev,
 bool RadioCheckRfFrequency( uint32_t frequency )
 {
     return true;
-}
-
-static uint32_t RadioGetLoRaBandwidthInHz( RadioLoRaBandwidths_t bw )
-{
-    uint32_t bandwidthInHz = 0;
-
-    switch( bw )
-    {
-    case LORA_BW_007:
-        bandwidthInHz = 7812UL;
-        break;
-    case LORA_BW_010:
-        bandwidthInHz = 10417UL;
-        break;
-    case LORA_BW_015:
-        bandwidthInHz = 15625UL;
-        break;
-    case LORA_BW_020:
-        bandwidthInHz = 20833UL;
-        break;
-    case LORA_BW_031:
-        bandwidthInHz = 31250UL;
-        break;
-    case LORA_BW_041:
-        bandwidthInHz = 41667UL;
-        break;
-    case LORA_BW_062:
-        bandwidthInHz = 62500UL;
-        break;
-    case LORA_BW_125:
-        bandwidthInHz = 125000UL;
-        break;
-    case LORA_BW_250:
-        bandwidthInHz = 250000UL;
-        break;
-    case LORA_BW_500:
-        bandwidthInHz = 500000UL;
-        break;
-    }
-
-    return bandwidthInHz;
 }
 
 static uint32_t RadioGetGfskTimeOnAirNumerator( uint32_t datarate, uint8_t coderate,
@@ -1016,7 +1004,7 @@ uint32_t RadioTimeOnAir( RadioModems_t modem, uint32_t bandwidth,
             numerator   = 1000U * RadioGetLoRaTimeOnAirNumerator( bandwidth, datarate,
                                                                   coderate, preambleLen,
                                                                   fixLen, payloadLen, crcOn );
-            denominator = RadioGetLoRaBandwidthInHz( Bandwidths[bandwidth] );
+            denominator = bandwidth;
         }
         break;
     }

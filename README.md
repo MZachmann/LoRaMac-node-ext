@@ -1,9 +1,17 @@
 # LoRaWAN end-device stack implementation and example projects
 
->**Subsequent to the availability of a new and feature enhanced LoRaWAN® stack within [LoRa Basics™ Modem](https://github.com/Lora-net/SWL2001), Semtech has decided to transition LoRaMac-Node to maintenance mode (critical bug fixes will still be supported).**
+**Since Semtech has abandoned this code base but Zephyr uses it, enhancements are being added:**
+
+| Change | Date | Summary |
+| ------- | ---- | ---- |
+| Bandwidth | 2024-05-29 | Support bandwidth specification in Hz to allow for less than 125KHz bandwidths. Each reduction in bandwidth increases the radio range.
+| - | |
+| - | |
+
+>Subsequent to the availability of a new and feature enhanced LoRaWANï¿½ stack within [LoRa Basicsï¿½ Modem](https://github.com/Lora-net/SWL2001), Semtech has decided to transition LoRaMac-Node to maintenance mode (critical bug fixes will still be supported).
 >
->**LoRa Basics™ Modem is the platform implementing new LoRaWAN features (i.e. Relay, CSMA) and will support future improvements introduced by the LoRa Alliance (e.g. LoRaWAN 1.2).
-While the formerly introduced LoRaMac-Node stack transitions to maintenance mode Semtech recommends customers to use [LoRa Basics™ Modem](https://github.com/Lora-net/SWL2001) for new designs.**
+>**LoRa Basicsï¿½ Modem is the platform implementing new LoRaWAN features (i.e. Relay, CSMA) and will support future improvements introduced by the LoRa Alliance (e.g. LoRaWAN 1.2).
+While the formerly introduced LoRaMac-Node stack transitions to maintenance mode Semtech recommends customers to use [LoRa Basicsï¿½ Modem](https://github.com/Lora-net/SWL2001) for new designs.**
 
 ## Introduction
 

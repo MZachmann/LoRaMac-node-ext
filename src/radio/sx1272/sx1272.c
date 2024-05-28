@@ -64,13 +64,13 @@ typedef struct
 }RadioRegisters_t;
 
 /*!
- * FSK bandwidth definition
+ * Bandwidth definition
  */
 typedef struct
 {
     uint32_t bandwidth;
     uint8_t  RegValue;
-}FskBandwidth_t;
+}RadioBandwidth_t;
 
 
 /*
@@ -126,7 +126,7 @@ static uint32_t SX1272ConvertPllStepToFreqInHz( uint32_t pllSteps );
 static uint32_t SX1272ConvertFreqInHzToPllStep( uint32_t freqInHz );
 
 /*!
- * \brief Get the parameter corresponding to a FSK Rx bandwith immediately above the minimum requested one.
+ * \brief Get the parameter corresponding to a FSK Rx bandwith equal to or above the requested one.
  *
  * \param [in] bw Minimum required bandwith in Hz
  *
@@ -135,13 +135,13 @@ static uint32_t SX1272ConvertFreqInHzToPllStep( uint32_t freqInHz );
 static uint8_t GetFskBandwidthRegValue( uint32_t bw );
 
 /*!
- * \brief Get the actual value in Hertz of a given LoRa bandwidth
+ * \brief Get the parameter corresponding to a Lora bandwith equal to or above the requested one.
  *
- * \param [in] bw LoRa bandwidth parameter
+ * \param [in] bw Minimum required bandwith in Hz
  *
- * \returns Actual LoRa bandwidth in Hertz
+ * \returns parameter
  */
-static uint32_t SX1272GetLoRaBandwidthInHz( uint32_t bw );
+static uint32_t GetLoraBandwidthRegValue( uint32_t bw );
 
 /*!
  * Compute the numerator for GFSK time-on-air computation.
@@ -232,7 +232,7 @@ const RadioRegisters_t RadioRegsInit[] = RADIO_INIT_REGISTERS_VALUE;
 /*!
  * Precomputed FSK bandwidth registers values
  */
-const FskBandwidth_t FskBandwidths[] =
+const RadioBandwidth_t FskBandwidths[] =
 {
     { 2600  , 0x17 },
     { 3100  , 0x0F },
@@ -254,8 +254,14 @@ const FskBandwidth_t FskBandwidths[] =
     { 125000, 0x02 },
     { 166700, 0x11 },
     { 200000, 0x09 },
-    { 250000, 0x01 },
-    { 300000, 0x00 }, // Invalid Bandwidth
+    { 250000, 0x01 }
+};
+
+/*!
+ * Precomputed Lora bandwidth registers values
+ */
+const RadioBandwidth_t LoraBandwidths[] = {
+    { 125000, 0 },  { 250000, 1 },  { 500000, 2 }
 };
 
 /*
@@ -510,7 +516,7 @@ void SX1272SetRxConfig( RadioModems_t modem, uint32_t bandwidth,
                            RFLR_MODEMCONFIG1_IMPLICITHEADER_MASK &
                            RFLR_MODEMCONFIG1_RXPAYLOADCRC_MASK &
                            RFLR_MODEMCONFIG1_LOWDATARATEOPTIMIZE_MASK ) |
-                           ( bandwidth << 6 ) | ( coderate << 3 ) |
+                           ( GetLoraBandwidthRegValue(bandwidth) << 6 ) | ( coderate << 3 ) |
                            ( fixLen << 2 ) | ( crcOn << 1 ) |
                            SX1272.Settings.LoRa.LowDatarateOptimize );
 
@@ -628,8 +634,8 @@ void SX1272SetTxConfig( RadioModems_t modem, int8_t power, uint32_t fdev,
             {
                 datarate = 6;
             }
-            if( ( ( bandwidth == 0 ) && ( ( datarate == 11 ) || ( datarate == 12 ) ) ) ||
-                ( ( bandwidth == 1 ) && ( datarate == 12 ) ) )
+            if( ( ( bandwidth <= 125000> ) && ( ( datarate == 11 ) || ( datarate == 12 ) ) ) ||
+                ( ( bandwidth == 250000 ) && ( datarate == 12 ) ) )
             {
                 SX1272.Settings.LoRa.LowDatarateOptimize = 0x01;
             }
@@ -651,7 +657,7 @@ void SX1272SetTxConfig( RadioModems_t modem, int8_t power, uint32_t fdev,
                            RFLR_MODEMCONFIG1_IMPLICITHEADER_MASK &
                            RFLR_MODEMCONFIG1_RXPAYLOADCRC_MASK &
                            RFLR_MODEMCONFIG1_LOWDATARATEOPTIMIZE_MASK ) |
-                           ( bandwidth << 6 ) | ( coderate << 3 ) |
+                           ( GetLoraBandwidthRegValue(bandwidth) << 6 ) | ( coderate << 3 ) |
                            ( fixLen << 2 ) | ( crcOn << 1 ) |
                            SX1272.Settings.LoRa.LowDatarateOptimize );
 
@@ -707,7 +713,7 @@ uint32_t SX1272GetTimeOnAir( RadioModems_t modem, uint32_t bandwidth,
         {
             numerator   = 1000U * SX1272GetLoRaTimeOnAirNumerator( bandwidth, datarate, coderate, preambleLen, fixLen,
                                                                    payloadLen, crcOn );
-            denominator = SX1272GetLoRaBandwidthInHz( bandwidth );
+            denominator = bandwidth;
         }
         break;
     }
@@ -1265,40 +1271,57 @@ static uint32_t SX1272ConvertFreqInHzToPllStep( uint32_t freqInHz )
              SX1272_PLL_STEP_SCALED );
 }
 
-static uint8_t GetFskBandwidthRegValue( uint32_t bw )
+/*!
+ * Returns the known bandwidth registers value, rounding up
+ *
+ * \param [IN] bandwidth Bandwidth value in Hz
+ * \param [IN] bandwidth,register list
+ * \param [IN] bandwidth list length
+ * \retval regValue Bandwidth register value.
+ */
+static uint8_t GetBandwidthRegValue( uint32_t bandwidth, RadioBandwidth_t* bandlist, uint8_t numbands )
 {
     uint8_t i;
 
-    for( i = 0; i < ( sizeof( FskBandwidths ) / sizeof( FskBandwidth_t ) ) - 1; i++ )
+    if( bandwidth <= bandlist[0].bandwidth)
     {
-        if( ( bw >= FskBandwidths[i].bandwidth ) && ( bw < FskBandwidths[i + 1].bandwidth ) )
+        return ( bandlist[0].RegValue );
+    }
+
+    for( i = 1; i < numbands; i++ )
+    {
+        if( ( bandwidth > bandlist[i-1].bandwidth ) && ( bandwidth <= bandlist[i].bandwidth ) )
         {
-            return FskBandwidths[i].RegValue;
+            return bandlist[i].RegValue;
         }
     }
     // ERROR: Value not found
-    while( 1 );
+    while( 1 )
+        ;
 }
 
-static uint32_t SX1272GetLoRaBandwidthInHz( uint32_t bw )
+/*!
+ * Returns the known FSK bandwidth registers value
+ *
+ * \param [IN] bandwidth Bandwidth value in Hz
+ * \retval regValue Bandwidth register value.
+ */
+static uint8_t GetFskBandwidthRegValue( uint32_t bandwidth )
 {
-    uint32_t bandwidthInHz = 0;
-
-    switch( bw )
-    {
-    case 0: // 125 kHz
-        bandwidthInHz = 125000UL;
-        break;
-    case 1: // 250 kHz
-        bandwidthInHz = 250000UL;
-        break;
-    case 2: // 500 kHz
-        bandwidthInHz = 500000UL;
-        break;
-    }
-
-    return bandwidthInHz;
+    return GetBandwidthRegValue(bandwidth, FskBandwidths, sizeof( FskBandwidths ) / sizeof( RadioBandwidth_t ))
 }
+
+/*!
+ * Returns the known Lora bandwidth registers value
+ *
+ * \param [IN] bandwidth Bandwidth value in Hz
+ * \retval regValue Bandwidth register value.
+ */
+static uint8_t GetLoraBandwidthRegValue( uint32_t bandwidth )
+{
+    return GetBandwidthRegValue(bandwidth, LoraBandwidths, sizeof( LoraBandwidths ) / sizeof( RadioBandwidth_t ))
+}
+
 
 static uint32_t SX1272GetGfskTimeOnAirNumerator( uint16_t preambleLen, bool fixLen,
                                                  uint8_t payloadLen, bool crcOn )

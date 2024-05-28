@@ -72,7 +72,7 @@ typedef struct
 {
     uint32_t bandwidth;
     uint8_t  RegValue;
-}FskBandwidth_t;
+}RadioBandwidth_t;
 
 
 /*
@@ -134,7 +134,7 @@ static uint32_t SX1276ConvertPllStepToFreqInHz( uint32_t pllSteps );
 static uint32_t SX1276ConvertFreqInHzToPllStep( uint32_t freqInHz );
 
 /*!
- * \brief Get the parameter corresponding to a FSK Rx bandwith immediately above the minimum requested one.
+ * \brief Get the parameter corresponding to the minimum FSK Rx bandwith equal to or above the requested one..
  *
  * \param [in] bw Minimum required bandwith in Hz
  *
@@ -143,13 +143,13 @@ static uint32_t SX1276ConvertFreqInHzToPllStep( uint32_t freqInHz );
 static uint8_t GetFskBandwidthRegValue( uint32_t bw );
 
 /*!
- * \brief Get the actual value in Hertz of a given LoRa bandwidth
+ * \brief Get the parameter corresponding to the minimum Lora Rx bandwith equal to or above the requested one..
  *
- * \param [in] bw LoRa bandwidth parameter
+ * \param [in] bw Minimum required bandwith in Hz
  *
- * \returns Actual LoRa bandwidth in Hertz
+ * \returns parameter
  */
-static uint32_t SX1276GetLoRaBandwidthInHz( uint32_t bw );
+static uint8_t GetLoraBandwidthRegValue( uint32_t bw );
 
 /*!
  * Compute the numerator for GFSK time-on-air computation.
@@ -241,7 +241,7 @@ const RadioRegisters_t RadioRegsInit[] = RADIO_INIT_REGISTERS_VALUE;
 /*!
  * Precomputed FSK bandwidth registers values
  */
-const FskBandwidth_t FskBandwidths[] =
+const RadioBandwidth_t FskBandwidths[] =
 {
     { 2600  , 0x17 },
     { 3100  , 0x0F },
@@ -263,8 +263,31 @@ const FskBandwidth_t FskBandwidths[] =
     { 125000, 0x02 },
     { 166700, 0x11 },
     { 200000, 0x09 },
-    { 250000, 0x01 },
-    { 300000, 0x00 }, // Invalid Bandwidth
+    { 250000, 0x01 }
+};
+
+typedef enum
+{
+    LORA_BW_500                             = 9,
+    LORA_BW_250                             = 8,
+    LORA_BW_125                             = 7,
+    LORA_BW_062                             = 6,
+    LORA_BW_041                             = 5,
+    LORA_BW_031                             = 4,
+    LORA_BW_020                             = 3,
+    LORA_BW_015                             = 2,
+    LORA_BW_010                             = 1,
+    LORA_BW_007                             = 0,
+}RadioLoRaBandwidths_t;
+
+/*!
+ * Precomputed Lora bandwidth registers values
+ */
+const RadioBandwidth_t LoraBandwidths[] = {
+    { 7810, LORA_BW_007 },
+    { 10420, LORA_BW_010 },    { 15630, LORA_BW_015 },    { 20830, LORA_BW_020 },   
+    { 31250, LORA_BW_031 },    { 41670, LORA_BW_041 },    { 62500, LORA_BW_062 },
+    { 125000, LORA_BW_125 },  { 250000, LORA_BW_250 },  { 500000, LORA_BW_500 }
 };
 
 /*
@@ -550,8 +573,8 @@ void SX1276SetRxConfig( RadioModems_t modem, uint32_t bandwidth,
                 datarate = 6;
             }
 
-            if( ( ( bandwidth == 7 ) && ( ( datarate == 11 ) || ( datarate == 12 ) ) ) ||
-                ( ( bandwidth == 8 ) && ( datarate == 12 ) ) )
+            if( ( ( bandwidth <= 125000 ) && ( ( datarate == 11 ) || ( datarate == 12 ) ) ) ||
+                ( ( bandwidth == 250000 ) && ( datarate == 12 ) ) )
             {
                 SX1276.Settings.LoRa.LowDatarateOptimize = 0x01;
             }
@@ -565,7 +588,7 @@ void SX1276SetRxConfig( RadioModems_t modem, uint32_t bandwidth,
                            RFLR_MODEMCONFIG1_BW_MASK &
                            RFLR_MODEMCONFIG1_CODINGRATE_MASK &
                            RFLR_MODEMCONFIG1_IMPLICITHEADER_MASK ) |
-                           ( bandwidth << 4 ) | ( coderate << 1 ) |
+                           ( GetLoraBandwidthRegValue(bandwidth) << 4 ) | ( coderate << 1 ) |
                            fixLen );
 
             SX1276Write( REG_LR_MODEMCONFIG2,
@@ -597,13 +620,13 @@ void SX1276SetRxConfig( RadioModems_t modem, uint32_t bandwidth,
                 SX1276Write( REG_LR_HOPPERIOD, SX1276.Settings.LoRa.HopPeriod );
             }
 
-            if( ( bandwidth == 9 ) && ( SX1276.Settings.Channel > RF_MID_BAND_THRESH ) )
+            if( ( bandwidth == 500000 ) && ( SX1276.Settings.Channel > RF_MID_BAND_THRESH ) )
             {
                 // ERRATA 2.1 - Sensitivity Optimization with a 500 kHz Bandwidth
                 SX1276Write( REG_LR_HIGHBWOPTIMIZE1, 0x02 );
                 SX1276Write( REG_LR_HIGHBWOPTIMIZE2, 0x64 );
             }
-            else if( bandwidth == 9 )
+            else if( bandwidth == 500000 )
             {
                 // ERRATA 2.1 - Sensitivity Optimization with a 500 kHz Bandwidth
                 SX1276Write( REG_LR_HIGHBWOPTIMIZE1, 0x02 );
@@ -733,7 +756,7 @@ void SX1276SetTxConfig( RadioModems_t modem, int8_t power, uint32_t fdev,
                            RFLR_MODEMCONFIG1_BW_MASK &
                            RFLR_MODEMCONFIG1_CODINGRATE_MASK &
                            RFLR_MODEMCONFIG1_IMPLICITHEADER_MASK ) |
-                           ( bandwidth << 4 ) | ( coderate << 1 ) |
+                           ( GetLoraBandwidthRegValue(bandwidth) << 4 ) | ( coderate << 1 ) |
                            fixLen );
 
             SX1276Write( REG_LR_MODEMCONFIG2,
@@ -793,7 +816,7 @@ uint32_t SX1276GetTimeOnAir( RadioModems_t modem, uint32_t bandwidth,
         {
             numerator   = 1000U * SX1276GetLoRaTimeOnAirNumerator( bandwidth, datarate, coderate, preambleLen, fixLen,
                                                                    payloadLen, crcOn );
-            denominator = SX1276GetLoRaBandwidthInHz( bandwidth );
+            denominator = bandwidth;
         }
         break;
     }
@@ -952,43 +975,44 @@ void SX1276SetRx( uint32_t timeout )
             }
 
             // ERRATA 2.3 - Receiver Spurious Reception of a LoRa Signal
-            if( SX1276.Settings.LoRa.Bandwidth < 9 )
+            RadioBandwidth_t rbw = GetLoraBandwidthRegValue(SX1276.Settings.LoRa.Bandwidth)
+            if( SX1276.Settings.LoRa.Bandwidth < 500000 )
             {
                 SX1276Write( REG_LR_DETECTOPTIMIZE, SX1276Read( REG_LR_DETECTOPTIMIZE ) & 0x7F );
                 SX1276Write( REG_LR_IFFREQ2, 0x00 );
-                switch( SX1276.Settings.LoRa.Bandwidth )
+                switch( rbw )
                 {
-                case 0: // 7.8 kHz
+                case LORA_BW_007: // 7.8 kHz
                     SX1276Write( REG_LR_IFFREQ1, 0x48 );
                     SX1276SetChannel(SX1276.Settings.Channel + 7810 );
                     break;
-                case 1: // 10.4 kHz
+                case LORA_BW_010: // 10.4 kHz
                     SX1276Write( REG_LR_IFFREQ1, 0x44 );
                     SX1276SetChannel(SX1276.Settings.Channel + 10420 );
                     break;
-                case 2: // 15.6 kHz
+                case LORA_BW_015: // 15.6 kHz
                     SX1276Write( REG_LR_IFFREQ1, 0x44 );
                     SX1276SetChannel(SX1276.Settings.Channel + 15620 );
                     break;
-                case 3: // 20.8 kHz
+                case LORA_BW_020: // 20.8 kHz
                     SX1276Write( REG_LR_IFFREQ1, 0x44 );
                     SX1276SetChannel(SX1276.Settings.Channel + 20830 );
                     break;
-                case 4: // 31.2 kHz
+                case LORA_BW_031: // 31.2 kHz
                     SX1276Write( REG_LR_IFFREQ1, 0x44 );
                     SX1276SetChannel(SX1276.Settings.Channel + 31250 );
                     break;
-                case 5: // 41.4 kHz
+                case LORA_BW_041: // 41.4 kHz
                     SX1276Write( REG_LR_IFFREQ1, 0x44 );
                     SX1276SetChannel(SX1276.Settings.Channel + 41670 );
                     break;
-                case 6: // 62.5 kHz
+                case LORA_BW_062: // 62.5 kHz
                     SX1276Write( REG_LR_IFFREQ1, 0x40 );
                     break;
-                case 7: // 125 kHz
+                case LORA_BW_125: // 125 kHz
                     SX1276Write( REG_LR_IFFREQ1, 0x40 );
                     break;
-                case 8: // 250 kHz
+                case LORA_BW_250: // 250 kHz
                     SX1276Write( REG_LR_IFFREQ1, 0x40 );
                     break;
                 }
@@ -1405,40 +1429,58 @@ static uint32_t SX1276ConvertFreqInHzToPllStep( uint32_t freqInHz )
              SX1276_PLL_STEP_SCALED );
 }
 
-static uint8_t GetFskBandwidthRegValue( uint32_t bw )
+
+/*!
+ * Returns the known bandwidth registers value, rounding up
+ *
+ * \param [IN] bandwidth Bandwidth value in Hz
+ * \param [IN] bandwidth,register list
+ * \param [IN] bandwidth list length
+ * \retval regValue Bandwidth register value.
+ */
+static uint8_t GetBandwidthRegValue( uint32_t bandwidth, RadioBandwidth_t* bandlist, uint8_t numbands )
 {
     uint8_t i;
 
-    for( i = 0; i < ( sizeof( FskBandwidths ) / sizeof( FskBandwidth_t ) ) - 1; i++ )
+    if( bandwidth <= bandlist[0].bandwidth)
     {
-        if( ( bw >= FskBandwidths[i].bandwidth ) && ( bw < FskBandwidths[i + 1].bandwidth ) )
+        return ( bandlist[0].RegValue );
+    }
+
+    for( i = 1; i < numbands; i++ )
+    {
+        if( ( bandwidth > bandlist[i-1].bandwidth ) && ( bandwidth <= bandlist[i].bandwidth ) )
         {
-            return FskBandwidths[i].RegValue;
+            return bandlist[i].RegValue;
         }
     }
     // ERROR: Value not found
-    while( 1 );
+    while( 1 )
+        ;
 }
 
-static uint32_t SX1276GetLoRaBandwidthInHz( uint32_t bw )
+/*!
+ * Returns the known FSK bandwidth registers value
+ *
+ * \param [IN] bandwidth Bandwidth value in Hz
+ * \retval regValue Bandwidth register value.
+ */
+static uint8_t GetFskBandwidthRegValue( uint32_t bandwidth )
 {
-    uint32_t bandwidthInHz = 0;
-
-    switch( bw )
-    {
-    case 0: // 125 kHz
-        bandwidthInHz = 125000UL;
-        break;
-    case 1: // 250 kHz
-        bandwidthInHz = 250000UL;
-        break;
-    case 2: // 500 kHz
-        bandwidthInHz = 500000UL;
-        break;
-    }
-
-    return bandwidthInHz;
+    return GetBandwidthRegValue(bandwidth, FskBandwidths, sizeof( FskBandwidths ) / sizeof( RadioBandwidth_t ))
 }
+
+/*!
+ * Returns the known Lora bandwidth registers value
+ *
+ * \param [IN] bandwidth Bandwidth value in Hz
+ * \retval regValue Bandwidth register value.
+ */
+static uint8_t GetLoraBandwidthRegValue( uint32_t bandwidth )
+{
+    return GetBandwidthRegValue(bandwidth, LoraBandwidths, sizeof( LoraBandwidths ) / sizeof( RadioBandwidth_t ))
+}
+
 
 static uint32_t SX1276GetGfskTimeOnAirNumerator( uint16_t preambleLen, bool fixLen,
                                                  uint8_t payloadLen, bool crcOn )

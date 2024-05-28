@@ -69,10 +69,7 @@
 
 #if defined( USE_MODEM_LORA )
 
-#define LORA_BANDWIDTH                              0         // [0: 125 kHz,
-                                                              //  1: 250 kHz,
-                                                              //  2: 500 kHz,
-                                                              //  3: Reserved]
+#define LORA_BANDWIDTH                              125000       // bandwidth in Hz
 #define LORA_SPREADING_FACTOR                       10        // [SF7..SF12]
 #define LORA_CODINGRATE                             1         // [1: 4/5,
                                                               //  2: 4/6,
